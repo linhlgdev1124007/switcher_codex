@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller Build & Dist artifacts
+build/
+dist/
+*.manifest
+
+# PyInstaller Build logs
+warn-*.txt
+xref-*.html
+
+# Python Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+
+# IDE & Editor configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Windows System Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Logs & Temporary files
+*.log
+*.tmp
