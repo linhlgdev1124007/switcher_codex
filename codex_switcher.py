@@ -247,6 +247,22 @@ def format_reset(ts: float | int | str | None) -> str:
         return "—"
 
 
+def format_credit_expiry(ts: float | int | str | None) -> str:
+    if not ts:
+        return "Expiry unknown"
+
+    try:
+        dt = datetime.fromtimestamp(float(ts)).astimezone()
+        now = datetime.now().astimezone()
+
+        if dt.date() == now.date():
+            return f"Expires {dt:%H:%M} today"
+
+        return f"Expires {dt:%d %b %Y}"
+    except Exception:
+        return "Expiry unknown"
+
+
 def short_path(path: Path, max_len: int = 42) -> str:
     s = str(path)
     if len(s) <= max_len:
@@ -284,6 +300,8 @@ class AccountSnapshot:
     plan: str = "Unknown"
     auth_type: str = ""
     limits: list[LimitInfo] = field(default_factory=list)
+    reset_credits_available: int | None = None
+    reset_credits_expires_at: float | None = None
     error: str | None = None
     refreshed_at: float | None = None
 
@@ -495,6 +513,39 @@ def snapshot_for(home: Path, label: str, codex_bin: str) -> AccountSnapshot:
         snap.plan = plan_display(account.get("planType"))
 
         rate_result = rpc.request("account/rateLimits/read") or {}
+        reset_credits = rate_result.get("rateLimitResetCredits")
+
+        if isinstance(reset_credits, dict):
+            raw_available = reset_credits.get("availableCount")
+
+            try:
+                snap.reset_credits_available = (
+                    int(raw_available)
+                    if raw_available is not None
+                    else None
+                )
+            except Exception:
+                snap.reset_credits_available = None
+
+            credits = reset_credits.get("credits")
+            expiries: list[float] = []
+
+            if isinstance(credits, list):
+                for credit in credits:
+                    if not isinstance(credit, dict):
+                        continue
+
+                    raw_expiry = credit.get("expiresAt")
+                    if raw_expiry is None:
+                        continue
+
+                    try:
+                        expiries.append(float(raw_expiry))
+                    except Exception:
+                        continue
+
+            if expiries:
+                snap.reset_credits_expires_at = min(expiries)
 
         rate_obj = None
         by_id = rate_result.get("rateLimitsByLimitId") or {}
@@ -798,6 +849,17 @@ class AccountCard(ctk.CTkFrame):
         )
         badge.pack(side="left", padx=(6, 0))
 
+        if self.snap.reset_credits_available is not None:
+            reset_badge = Badge(
+                title_row,
+                text=f"RESET x{self.snap.reset_credits_available}",
+                fg_color=C["amber_soft"] if self.snap.reset_credits_available else C["surface_2"],
+                text_color=C["amber"] if self.snap.reset_credits_available else C["text_3"],
+                border_color=C["amber"] if self.snap.reset_credits_available else C["border"],
+                font_size=9,
+            )
+            reset_badge.pack(side="left", padx=(6, 0))
+
         # Email
         email_str = self.snap.email
         if len(email_str) > 28:
@@ -861,9 +923,41 @@ class AccountCard(ctk.CTkFrame):
         )
         self.copy_btn.grid(row=0, column=1, sticky="e", padx=4, pady=3)
 
+        next_row = 2
+
+        if self.snap.reset_credits_available is not None:
+            reset_strip = ctk.CTkFrame(
+                self,
+                fg_color=C["surface_2"],
+                corner_radius=6,
+                border_width=1,
+                border_color=C["border_subtle"],
+            )
+            reset_strip.grid(row=next_row, column=0, sticky="ew", padx=14, pady=(0, 10))
+            reset_strip.grid_columnconfigure(0, weight=1)
+
+            count = self.snap.reset_credits_available
+            count_text = f"{count} reset credit available" if count == 1 else f"{count} reset credits available"
+
+            ctk.CTkLabel(
+                reset_strip,
+                text=f"↻ {count_text}",
+                text_color=C["amber"] if count else C["text_3"],
+                font=(FONT_FAMILY, 10, "bold"),
+            ).grid(row=0, column=0, sticky="w", padx=8, pady=4)
+
+            ctk.CTkLabel(
+                reset_strip,
+                text=format_credit_expiry(self.snap.reset_credits_expires_at),
+                text_color=C["text_3"],
+                font=(FONT_MONO, 10),
+            ).grid(row=0, column=1, sticky="e", padx=8, pady=4)
+
+            next_row += 1
+
         # 3. Body: Limits & Quotas
         body = ctk.CTkFrame(self, fg_color="transparent")
-        body.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 12))
+        body.grid(row=next_row, column=0, sticky="ew", padx=14, pady=(0, 12))
 
         if self.snap.error:
             self._build_error(body)
@@ -904,7 +998,7 @@ class AccountCard(ctk.CTkFrame):
             text_color="#09090B",
             font=(FONT_FAMILY, 11, "bold"),
         )
-        launch_btn.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 14))
+        launch_btn.grid(row=next_row + 1, column=0, sticky="ew", padx=14, pady=(0, 14))
 
     def _handle_copy_path(self):
         self.app.copy_to_clipboard(str(self.snap.home))
