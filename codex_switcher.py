@@ -26,6 +26,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import threading
 import time
 import webbrowser
@@ -33,6 +34,15 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+
+
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    bundle_dir = Path(sys._MEIPASS)
+    sys.path.insert(0, str(bundle_dir))
+    sys.path.insert(0, str(Path(sys.executable).parent))
+    os.environ["TCL_LIBRARY"] = str(bundle_dir / "tcl" / "tcl8.6")
+    os.environ["TK_LIBRARY"] = str(bundle_dir / "tcl" / "tk8.6")
+
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 
@@ -2155,6 +2165,12 @@ class CodexAccountManager(ctk.CTk):
 def main():
     if os.name != "nt":
         raise SystemExit("Codex Profile Manager is designed for Windows.")
+
+    if "--self-test-tk" in sys.argv:
+        root = tk.Tk()
+        root.withdraw()
+        root.destroy()
+        return
 
     app = CodexAccountManager()
     app.mainloop()
