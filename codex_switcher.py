@@ -1918,19 +1918,24 @@ class CodexAccountManager(ctk.CTk):
             bd=1,
         )
 
+        is_main = snap.home.name == ".codex-tuan03" or snap.label.lower() == "tuan03"
+
         menu.add_command(label=">_ Launch Codex Terminal", command=lambda: self.open_codex(snap))
         menu.add_command(label="↻  Refresh Rate Limits", command=lambda: self.refresh_one(snap.home))
-        menu.add_separator()
-        menu.add_command(label="🔑 Authenticate / Change Account", command=lambda: self.login_account(snap))
-
-        if snap.email != "Not signed in":
-            menu.add_command(label="🚪 Logout from Profile", command=lambda: self.logout_account(snap))
+        
+        if not is_main:
+            menu.add_separator()
+            menu.add_command(label="🔑 Authenticate / Change Account", command=lambda: self.login_account(snap))
+            if snap.email != "Not signed in":
+                menu.add_command(label="🚪 Logout from Profile", command=lambda: self.logout_account(snap))
 
         menu.add_separator()
         menu.add_command(label="📁 Open CODEX_HOME Folder", command=lambda: self.open_folder(snap.home))
         menu.add_command(label="📋 Copy CODEX_HOME Path", command=lambda: self.copy_to_clipboard(str(snap.home)))
-        menu.add_separator()
-        menu.add_command(label="🗑️ Delete Profile...", command=lambda: self.delete_profile(snap))
+        
+        if not is_main:
+            menu.add_separator()
+            menu.add_command(label="🗑️ Delete Profile...", command=lambda: self.delete_profile(snap))
 
         try:
             x = button.winfo_rootx()
