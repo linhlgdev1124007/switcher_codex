@@ -1482,15 +1482,30 @@ class CodexAccountManager(ctk.CTk):
                 fill=C["text_3"]
             ))
 
-        # Tìm profile đầu tiên hợp lệ (Plus hoặc Free) làm mục tiêu mặc định
+        # Tải lại profile đã từng liên kết trước đó từ settings.json
+        saved_target = self._load_nexus_target()
         self.nexus_nodes = []
         self.nexus_active_target = None
-        for path, _ in others:
-            snap = self.snapshots.get(path)
-            p = (snap.plan or "Free").lower() if snap else "free"
-            if p not in ("pro", "prolite", "team", "business"):
-                self.nexus_active_target = path
-                break
+
+        # 1. Nếu đã lưu target từ lần trước, kiểm tra xem còn tồn tại và hợp lệ không
+        if saved_target:
+            for path, _ in others:
+                if path.resolve() == saved_target.resolve():
+                    snap = self.snapshots.get(path)
+                    p = (snap.plan or "Free").lower() if snap else "free"
+                    if p not in ("pro", "prolite", "team", "business"):
+                        self.nexus_active_target = path
+                    break
+
+        # 2. Nếu chưa từng lưu hoặc profile cũ không còn hợp lệ, chọn profile Plus/Free đầu tiên
+        if not self.nexus_active_target:
+            for path, _ in others:
+                snap = self.snapshots.get(path)
+                p = (snap.plan or "Free").lower() if snap else "free"
+                if p not in ("pro", "prolite", "team", "business"):
+                    self.nexus_active_target = path
+                    self._save_nexus_target(path)
+                    break
             
         main_x, main_y = 120, req_height / 2
         
@@ -1604,8 +1619,8 @@ class CodexAccountManager(ctk.CTk):
                     cv.itemconfig(n["circle_id"], outline="#5c2a30" if n["is_pro"] else C["border_strong"], width=2)
                     
         def copy_nexus_file(src_dir: Path, dst_dir: Path) -> tuple[bool, str]:
-            src_file = src_dir / "a.txt"
-            dst_file = dst_dir / "a.txt"
+            src_file = src_dir / "auth.json"
+            dst_file = dst_dir / "auth.json"
             try:
                 # Nếu file a.txt ở profile Main đã có sẵn thì xóa đi trước
                 if dst_file.exists():
@@ -1636,6 +1651,7 @@ class CodexAccountManager(ctk.CTk):
                     return
 
                 self.nexus_active_target = node_data["path"]
+                self._save_nexus_target(node_data["path"])
                 snap_to_target()
                 
                 # Thực hiện copy file a.txt từ profile Free/Plus sang Profile Main
@@ -1759,13 +1775,45 @@ class CodexAccountManager(ctk.CTk):
     def _save_explicit_accounts(self):
         try:
             self.state_dir.mkdir(parents=True, exist_ok=True)
-            payload = {
-                "accounts": [
-                    {"path": str(item["path"]), "label": item["label"]}
-                    for item in self.explicit_accounts
-                ]
-            }
-            self.state_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            data = {}
+            if self.state_file.is_file():
+                try:
+                    data = json.loads(self.state_file.read_text(encoding="utf-8"))
+                except Exception:
+                    data = {}
+            data["accounts"] = [
+                {"path": str(item["path"]), "label": item["label"]}
+                for item in self.explicit_accounts
+            ]
+            self.state_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _load_nexus_target(self) -> Path | None:
+        try:
+            if not self.state_file.is_file():
+                return None
+            data = json.loads(self.state_file.read_text(encoding="utf-8"))
+            target_str = data.get("nexus_linked_profile")
+            if target_str:
+                p = Path(target_str).expanduser()
+                if p.is_dir():
+                    return p.resolve()
+        except Exception:
+            pass
+        return None
+
+    def _save_nexus_target(self, target_path: Path | None):
+        try:
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            data = {}
+            if self.state_file.is_file():
+                try:
+                    data = json.loads(self.state_file.read_text(encoding="utf-8"))
+                except Exception:
+                    data = {}
+            data["nexus_linked_profile"] = str(target_path.resolve()) if target_path else None
+            self.state_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
         except Exception:
             pass
 
