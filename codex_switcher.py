@@ -1547,18 +1547,20 @@ class CodexAccountManager(ctk.CTk):
         self.dragging = False
         
         def on_press(event):
-            # Check hitbox instead of head_id to allow easier grabbing
-            items = cv.find_withtag("current")
-            # Or manually check coordinates
-            hx, hy, hx2, hy2 = cv.coords(head_hitbox)
-            if hx <= event.x <= hx2 and hy <= event.y <= hy2:
+            # Tính toán khoảng cách từ chuột đến tâm của head_id
+            hx1, hy1, hx2, hy2 = cv.coords(head_id)
+            hcx = (hx1 + hx2) / 2
+            hcy = (hy1 + hy2) / 2
+            
+            # Cho phép bán kính nắm dây lên tới 40 pixel (rất dễ bấm)
+            if (event.x - hcx)**2 + (event.y - hcy)**2 < 1600:
                 self.dragging = True
                 cv.itemconfig(head_id, fill=C["indigo_glow"])
                 
         def on_drag(event):
             if self.dragging:
                 update_wire(event.x, event.y)
-                # Hover effect
+                # Hiệu ứng hover
                 for n in self.nexus_nodes:
                     d = (n["x"] - event.x)**2 + (n["y"] - event.y)**2
                     if d < 1500:
@@ -1584,9 +1586,7 @@ class CodexAccountManager(ctk.CTk):
             snap_to_target()
             cv.itemconfig(head_id, fill=C["emerald"])
             
-        # Using tag_bind makes it vastly more reliable to grab
-        cv.tag_bind(head_id, "<ButtonPress-1>", on_press)
-        cv.tag_bind(head_hitbox, "<ButtonPress-1>", on_press)
+        cv.bind("<ButtonPress-1>", on_press)
         cv.bind("<B1-Motion>", on_drag)
         cv.bind("<ButtonRelease-1>", on_release)
 
