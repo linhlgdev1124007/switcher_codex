@@ -1510,26 +1510,24 @@ class CodexAccountManager(ctk.CTk):
             oy = 100 + row * 160
             
             tag = f"node_{i}"
-            cv.create_oval(ox-25, oy-25, ox+25, oy+25, fill=C["surface_2"], outline=C["border_strong"], width=2, tags=("target_node", tag))
-            cv.create_text(ox, oy, text=(label[:1] or "C").upper(), fill=C["text_2"], font=(FONT_FAMILY, 14, "bold"))
+            # Vẽ khung nền card cho từng profile để tạo vùng bấm cực rộng
+            card_id = cv.create_rectangle(ox-85, oy-35, ox+85, oy+125, fill=C["surface_2"], outline=C["border"], width=1, tags=("target_node", tag))
+            circle_id = cv.create_oval(ox-25, oy-25, ox+25, oy+25, fill=C["surface"], outline=C["border_strong"], width=2, tags=("target_node", tag))
+            cv.create_text(ox, oy, text=(label[:1] or "C").upper(), fill=C["text_2"], font=(FONT_FAMILY, 14, "bold"), tags=("target_node", tag))
             cv.create_text(ox, oy+42, text=label, fill=C["text_2"], font=(FONT_FAMILY, 11, "bold"), tags=("target_node", tag))
             draw_node_limits(path, ox, oy+64, tag=tag)
-            self.nexus_nodes.append({"path": path, "x": ox, "y": oy, "tag": tag})
+            self.nexus_nodes.append({"path": path, "x": ox, "y": oy, "card_id": card_id, "circle_id": circle_id, "tag": tag, "idx": i})
             
         # Draw Wire & Glow
         wire_glow = cv.create_line(0, 0, 0, 0, fill=C["indigo_soft"], width=8, smooth=True)
         wire_id = cv.create_line(0, 0, 0, 0, fill=C["indigo_glow"], width=3, smooth=True)
         head_id = cv.create_oval(0, 0, 0, 0, fill=C["emerald"], outline=C["window"], width=2)
         
-        # We also draw an invisible larger hit-box for the head for easier dragging
-        head_hitbox = cv.create_oval(0, 0, 0, 0, fill="", outline="")
-        
         def update_wire(end_x, end_y):
             mid_x = (main_x + end_x) / 2
             cv.coords(wire_glow, main_x+40, main_y, mid_x, main_y, mid_x, end_y, end_x-25, end_y)
             cv.coords(wire_id, main_x+40, main_y, mid_x, main_y, mid_x, end_y, end_x-25, end_y)
             cv.coords(head_id, end_x-32, end_y-7, end_x-18, end_y+7)
-            cv.coords(head_hitbox, end_x-42, end_y-17, end_x-8, end_y+17)
             
         def snap_to_target():
             if not self.nexus_active_target:
@@ -1538,35 +1536,52 @@ class CodexAccountManager(ctk.CTk):
             for n in self.nexus_nodes:
                 if n["path"] == self.nexus_active_target:
                     update_wire(n["x"], n["y"])
-                    cv.itemconfig(n["tag"], outline=C["emerald"], width=3)
+                    cv.itemconfig(n["card_id"], outline=C["emerald"], width=2)
+                    cv.itemconfig(n["circle_id"], outline=C["emerald"], width=3)
                 else:
-                    cv.itemconfig(n["tag"], outline=C["border_strong"], width=2)
+                    cv.itemconfig(n["card_id"], outline=C["border"], width=1)
+                    cv.itemconfig(n["circle_id"], outline=C["border_strong"], width=2)
                     
-        snap_to_target()
-        
-        def on_node_click(event):
+        def select_node_by_index(idx):
+            if 0 <= idx < len(others):
+                self.nexus_active_target = others[idx][0]
+                snap_to_target()
+
+        def on_click(event):
+            # 1. Kiểm tra nếu bấm trực tiếp vào phần tử có tag node_
             items = cv.find_withtag("current")
-            if not items: return
-            tags = cv.gettags(items[0])
-            for t in tags:
-                if t.startswith("node_"):
-                    try:
-                        idx = int(t.split("_")[1])
-                        if idx < len(others):
-                            self.nexus_active_target = others[idx][0]
-                            snap_to_target()
-                    except ValueError:
-                        pass
-                    break
-                    
-        # Bắt sự kiện click trực tiếp trên các khối hình/chữ của profile
-        cv.tag_bind("target_node", "<ButtonPress-1>", on_node_click)
+            if items:
+                for t in cv.gettags(items[0]):
+                    if t.startswith("node_"):
+                        try:
+                            idx = int(t.split("_")[1])
+                            select_node_by_index(idx)
+                            return
+                        except ValueError:
+                            pass
+            # 2. Dự phòng hình học: kiểm tra khoảng cách đến các node
+            closest_idx = None
+            min_d = 100**2
+            for n in self.nexus_nodes:
+                d = (n["x"] - event.x)**2 + (n["y"] - event.y)**2
+                if d < min_d:
+                    min_d = d
+                    closest_idx = n["idx"]
+            if closest_idx is not None:
+                select_node_by_index(closest_idx)
+
+        # Bắt sự kiện click cả trên tag phần tử và trên canvas
+        cv.tag_bind("target_node", "<ButtonPress-1>", on_click)
+        cv.bind("<ButtonPress-1>", on_click)
         
-        # Thêm hiệu ứng biến con trỏ thành hình bàn tay để báo hiệu có thể click
+        # Thêm hiệu ứng biến con trỏ thành hình bàn tay
         def on_enter(e): cv.config(cursor="hand2")
         def on_leave(e): cv.config(cursor="")
         cv.tag_bind("target_node", "<Enter>", on_enter)
         cv.tag_bind("target_node", "<Leave>", on_leave)
+
+        # Kích hoạt snap lần đầu tiên sau khi đã bind toàn bộ sự kiện
+        snap_to_target()
 
     def _render_placeholder_page(self, page: str):
         self._clear_scroll()
