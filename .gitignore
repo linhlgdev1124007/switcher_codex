@@ -35,3 +35,5 @@ $RECYCLE.BIN/
 # Logs & Temporary files
 *.log
 *.tmp
+
+lastapp/
