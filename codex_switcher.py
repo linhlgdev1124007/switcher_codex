@@ -1579,6 +1579,14 @@ class CodexAccountManager(ctk.CTk):
 
             filtered_accounts.append((path, label))
 
+        # --- Pin Tuan03 Main Profile to Top ---
+        filtered_accounts.sort(
+            key=lambda x: (
+                0 if x[1].lower() == "tuan03" or x[0].name == ".codex-tuan03" else 1,
+                x[1].lower()
+            )
+        )
+
         self.accounts_badge.configure(
             text=f"{len(filtered_accounts)} of {len(all_accounts)} profiles"
         )
