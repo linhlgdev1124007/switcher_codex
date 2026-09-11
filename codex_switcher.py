@@ -1544,22 +1544,29 @@ class CodexAccountManager(ctk.CTk):
                     
         snap_to_target()
         
-        def on_click(event):
-            closest = None
-            min_d = 9999
-            for n in self.nexus_nodes:
-                d = (n["x"] - event.x)**2 + (n["y"] - event.y)**2
-                # Bán kính 65 pixel bao phủ hình tròn, chữ và thanh quota
-                if d < 4225:
-                    if d < min_d:
-                        min_d = d
-                        closest = n
-            
-            if closest:
-                self.nexus_active_target = closest["path"]
-                snap_to_target()
-                
-        cv.bind("<ButtonPress-1>", on_click)
+        def on_node_click(event):
+            items = cv.find_withtag("current")
+            if not items: return
+            tags = cv.gettags(items[0])
+            for t in tags:
+                if t.startswith("node_"):
+                    try:
+                        idx = int(t.split("_")[1])
+                        if idx < len(others):
+                            self.nexus_active_target = others[idx][0]
+                            snap_to_target()
+                    except ValueError:
+                        pass
+                    break
+                    
+        # Bắt sự kiện click trực tiếp trên các khối hình/chữ của profile
+        cv.tag_bind("target_node", "<ButtonPress-1>", on_node_click)
+        
+        # Thêm hiệu ứng biến con trỏ thành hình bàn tay để báo hiệu có thể click
+        def on_enter(e): cv.config(cursor="hand2")
+        def on_leave(e): cv.config(cursor="")
+        cv.tag_bind("target_node", "<Enter>", on_enter)
+        cv.tag_bind("target_node", "<Leave>", on_leave)
 
     def _render_placeholder_page(self, page: str):
         self._clear_scroll()
