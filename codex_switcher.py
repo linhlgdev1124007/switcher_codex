@@ -1603,6 +1603,28 @@ class CodexAccountManager(ctk.CTk):
                     cv.itemconfig(n["card_id"], outline="#3a2024" if n["is_pro"] else C["border"], width=1)
                     cv.itemconfig(n["circle_id"], outline="#5c2a30" if n["is_pro"] else C["border_strong"], width=2)
                     
+        def copy_nexus_file(src_dir: Path, dst_dir: Path) -> tuple[bool, str]:
+            src_file = src_dir / "a.txt"
+            dst_file = dst_dir / "a.txt"
+            try:
+                # Nếu file a.txt ở profile Main đã có sẵn thì xóa đi trước
+                if dst_file.exists():
+                    if dst_file.is_dir():
+                        shutil.rmtree(dst_file)
+                    else:
+                        dst_file.unlink()
+            except Exception as e:
+                return False, f"Không thể xóa a.txt cũ ở P Main: {e}"
+
+            if not src_file.exists():
+                return False, "Không tìm thấy a.txt ở profile nguồn"
+
+            try:
+                shutil.copy2(src_file, dst_file)
+                return True, "Đã sao chép a.txt sang P Main"
+            except Exception as e:
+                return False, f"Lỗi copy a.txt: {e}"
+
         def select_node_by_index(idx):
             if 0 <= idx < len(self.nexus_nodes):
                 node_data = self.nexus_nodes[idx]
@@ -1615,7 +1637,13 @@ class CodexAccountManager(ctk.CTk):
 
                 self.nexus_active_target = node_data["path"]
                 snap_to_target()
-                set_notice(f"✓ Đã kết nối với {node_data['label']} ({node_data['plan'].upper()})", C["emerald"])
+                
+                # Thực hiện copy file a.txt từ profile Free/Plus sang Profile Main
+                success, sync_msg = copy_nexus_file(node_data["path"], main_acc[0])
+                if success:
+                    set_notice(f"✓ Đã kết nối với {node_data['label']} ({node_data['plan'].upper()}) • {sync_msg}", C["emerald"])
+                else:
+                    set_notice(f"✓ Đã kết nối với {node_data['label']} ({node_data['plan'].upper()}) • ⚠️ {sync_msg}", C["amber"])
 
         def on_click(event):
             # 1. Kiểm tra nếu bấm trực tiếp vào phần tử có tag node_
@@ -1654,7 +1682,9 @@ class CodexAccountManager(ctk.CTk):
         cv.tag_bind("blocked_node", "<Enter>", on_enter_blocked)
         cv.tag_bind("blocked_node", "<Leave>", on_leave)
 
-        # Kích hoạt snap lần đầu tiên
+        # Kích hoạt snap lần đầu tiên và đồng bộ file nếu có profile hợp lệ
+        if self.nexus_active_target:
+            copy_nexus_file(self.nexus_active_target, main_acc[0])
         snap_to_target()
 
     def _render_placeholder_page(self, page: str):
