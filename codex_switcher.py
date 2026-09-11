@@ -1452,9 +1452,6 @@ class CodexAccountManager(ctk.CTk):
         )
         card.grid(row=0, column=0, sticky="ew", pady=(8, 0))
         
-        cv = tk.Canvas(card, bg=C["surface"], height=460, highlightthickness=0)
-        cv.pack(fill="x", padx=10, pady=10)
-        
         accounts = self.discover_accounts()
         accounts.sort(key=lambda x: (0 if x[1].lower() == "tuan03" or x[0].name == ".codex-tuan03" else 1, x[1].lower()))
         
@@ -1464,10 +1461,15 @@ class CodexAccountManager(ctk.CTk):
         main_acc = accounts[0]
         others = accounts[1:]
         
+        # Grid Layout Calculation
+        req_height = max(460, (((len(others) - 1) // 2) + 1) * 160 + 100) if others else 460
+        cv = tk.Canvas(card, bg=C["surface"], height=req_height, highlightthickness=0)
+        cv.pack(fill="x", padx=10, pady=10)
+        
         self.nexus_nodes = []
         self.nexus_active_target = others[0][0] if others else None
             
-        main_x, main_y = 120, 230
+        main_x, main_y = 120, req_height / 2
         
         def draw_node_limits(path, cx, cy, tag=None):
             snap = self.snapshots.get(path)
@@ -1500,12 +1502,12 @@ class CodexAccountManager(ctk.CTk):
         cv.create_text(main_x, main_y+60, text=main_acc[1], fill=C["text"], font=(FONT_FAMILY, 12, "bold"))
         draw_node_limits(main_acc[0], main_x, main_y+84)
         
-        # Calculate positions for others
-        spacing = 460 / (len(others) + 1) if others else 0
-        
+        # Calculate positions for others in Grid
         for i, (path, label) in enumerate(others):
-            ox = 550
-            oy = spacing * (i + 1)
+            col = i % 2
+            row = i // 2
+            ox = 380 + col * 200
+            oy = 100 + row * 160
             
             tag = f"node_{i}"
             cv.create_oval(ox-25, oy-25, ox+25, oy+25, fill=C["surface_2"], outline=C["border_strong"], width=2, tags=("target_node", tag))
@@ -1519,11 +1521,15 @@ class CodexAccountManager(ctk.CTk):
         wire_id = cv.create_line(0, 0, 0, 0, fill=C["indigo_glow"], width=3, smooth=True)
         head_id = cv.create_oval(0, 0, 0, 0, fill=C["emerald"], outline=C["window"], width=2)
         
+        # We also draw an invisible larger hit-box for the head for easier dragging
+        head_hitbox = cv.create_oval(0, 0, 0, 0, fill="", outline="")
+        
         def update_wire(end_x, end_y):
             mid_x = (main_x + end_x) / 2
             cv.coords(wire_glow, main_x+40, main_y, mid_x, main_y, mid_x, end_y, end_x-25, end_y)
             cv.coords(wire_id, main_x+40, main_y, mid_x, main_y, mid_x, end_y, end_x-25, end_y)
             cv.coords(head_id, end_x-32, end_y-7, end_x-18, end_y+7)
+            cv.coords(head_hitbox, end_x-42, end_y-17, end_x-8, end_y+17)
             
         def snap_to_target():
             if not self.nexus_active_target:
@@ -1541,8 +1547,11 @@ class CodexAccountManager(ctk.CTk):
         self.dragging = False
         
         def on_press(event):
-            hx, hy, hx2, hy2 = cv.coords(head_id)
-            if hx - 15 <= event.x <= hx2 + 15 and hy - 15 <= event.y <= hy2 + 15:
+            # Check hitbox instead of head_id to allow easier grabbing
+            items = cv.find_withtag("current")
+            # Or manually check coordinates
+            hx, hy, hx2, hy2 = cv.coords(head_hitbox)
+            if hx <= event.x <= hx2 and hy <= event.y <= hy2:
                 self.dragging = True
                 cv.itemconfig(head_id, fill=C["indigo_glow"])
                 
@@ -1575,7 +1584,9 @@ class CodexAccountManager(ctk.CTk):
             snap_to_target()
             cv.itemconfig(head_id, fill=C["emerald"])
             
-        cv.bind("<ButtonPress-1>", on_press)
+        # Using tag_bind makes it vastly more reliable to grab
+        cv.tag_bind(head_id, "<ButtonPress-1>", on_press)
+        cv.tag_bind(head_hitbox, "<ButtonPress-1>", on_press)
         cv.bind("<B1-Motion>", on_drag)
         cv.bind("<ButtonRelease-1>", on_release)
 
