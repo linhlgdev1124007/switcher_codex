@@ -1622,23 +1622,23 @@ class CodexAccountManager(ctk.CTk):
             src_file = src_dir / "auth.json"
             dst_file = dst_dir / "auth.json"
             try:
-                # Nếu file a.txt ở profile Main đã có sẵn thì xóa đi trước
+                # Nếu file auth.json ở profile Main đã có sẵn thì xóa đi trước
                 if dst_file.exists():
                     if dst_file.is_dir():
                         shutil.rmtree(dst_file)
                     else:
                         dst_file.unlink()
             except Exception as e:
-                return False, f"Không thể xóa a.txt cũ ở P Main: {e}"
+                return False, f"Không thể xóa auth.json cũ ở P Main: {e}"
 
             if not src_file.exists():
-                return False, "Không tìm thấy a.txt ở profile nguồn"
+                return False, "Không tìm thấy auth.json ở profile nguồn"
 
             try:
                 shutil.copy2(src_file, dst_file)
-                return True, "Đã sao chép a.txt sang P Main"
+                return True, "Đã sao chép auth.json sang P Main"
             except Exception as e:
-                return False, f"Lỗi copy a.txt: {e}"
+                return False, f"Lỗi copy auth.json: {e}"
 
         def select_node_by_index(idx):
             if 0 <= idx < len(self.nexus_nodes):
@@ -1654,7 +1654,7 @@ class CodexAccountManager(ctk.CTk):
                 self._save_nexus_target(node_data["path"])
                 snap_to_target()
                 
-                # Thực hiện copy file a.txt từ profile Free/Plus sang Profile Main
+                # Thực hiện copy file auth.json từ profile Free/Plus sang Profile Main
                 success, sync_msg = copy_nexus_file(node_data["path"], main_acc[0])
                 if success:
                     set_notice(f"✓ Đã kết nối với {node_data['label']} ({node_data['plan'].upper()}) • {sync_msg}", C["emerald"])
