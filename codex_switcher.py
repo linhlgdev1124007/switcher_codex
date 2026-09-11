@@ -789,16 +789,19 @@ class AccountCard(ctk.CTkFrame):
         app: "CodexAccountManager",
         snap: AccountSnapshot,
     ):
+        is_main = snap.home.name == ".codex-tuan03" or snap.label.lower() == "tuan03"
+        
         super().__init__(
             master,
-            fg_color=C["surface"],
-            border_width=1,
-            border_color=C["border"],
+            fg_color=C["indigo_soft"] if is_main else C["surface"],
+            border_width=2 if is_main else 1,
+            border_color=C["indigo"] if is_main else C["border"],
             corner_radius=12,
         )
 
         self.app = app
         self.snap = snap
+        self.is_main = is_main
 
         self.grid_columnconfigure(0, weight=1)
         self._build()
@@ -839,10 +842,11 @@ class AccountCard(ctk.CTkFrame):
         title_row = ctk.CTkFrame(identity, fg_color="transparent")
         title_row.grid(row=0, column=0, sticky="w")
 
+        display_label = f"★ {self.snap.label} (Main) ★" if getattr(self, "is_main", False) else self.snap.label
         label_text = ctk.CTkLabel(
             title_row,
-            text=self.snap.label,
-            text_color=C["text"],
+            text=display_label,
+            text_color=C["indigo_glow"] if getattr(self, "is_main", False) else C["text"],
             font=(FONT_FAMILY, 13, "bold"),
         )
         label_text.pack(side="left")
@@ -1512,6 +1516,15 @@ class CodexAccountManager(ctk.CTk):
     def discover_accounts(self) -> list[tuple[Path, str]]:
         found: dict[Path, str] = {}
         home = Path.home()
+
+        # --- Auto-create Tuan03 Main Profile ---
+        tuan03_profile = home / ".codex-tuan03"
+        if not tuan03_profile.exists():
+            try:
+                tuan03_profile.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+
 
         default = home / ".codex"
         if default.is_dir():
