@@ -1466,14 +1466,37 @@ class CodexAccountManager(ctk.CTk):
         cv = tk.Canvas(card, bg=C["surface"], height=req_height, highlightthickness=0)
         cv.pack(fill="x", padx=10, pady=10)
         
+        # Banner hướng dẫn & thông báo trạng thái
+        notice_id = cv.create_text(
+            480, 24,
+            text="⚡ Nexus Link: Chỉ cho phép liên kết profile Main với tài khoản Plus hoặc Free",
+            fill=C["text_3"],
+            font=(FONT_FAMILY, 10, "bold"),
+        )
+        
+        def set_notice(msg: str, color: str):
+            cv.itemconfig(notice_id, text=msg, fill=color)
+            card.after(3500, lambda: cv.itemconfig(
+                notice_id,
+                text="⚡ Nexus Link: Chỉ cho phép liên kết profile Main với tài khoản Plus hoặc Free",
+                fill=C["text_3"]
+            ))
+
+        # Tìm profile đầu tiên hợp lệ (Plus hoặc Free) làm mục tiêu mặc định
         self.nexus_nodes = []
-        self.nexus_active_target = others[0][0] if others else None
+        self.nexus_active_target = None
+        for path, _ in others:
+            snap = self.snapshots.get(path)
+            p = (snap.plan or "Free").lower() if snap else "free"
+            if p not in ("pro", "prolite", "team", "business"):
+                self.nexus_active_target = path
+                break
             
         main_x, main_y = 120, req_height / 2
         
         def draw_node_limits(path, cx, cy, tag=None):
             snap = self.snapshots.get(path)
-            tags = ("target_node", tag) if tag else ()
+            tags = ("any_node", "target_node", tag) if tag else ()
             if not snap or not snap.limits:
                 cv.create_text(cx, cy, text="No limit data", fill=C["text_3"], font=(FONT_FAMILY, 9), tags=tags)
                 return
@@ -1509,14 +1532,52 @@ class CodexAccountManager(ctk.CTk):
             ox = 380 + col * 200
             oy = 100 + row * 160
             
+            snap = self.snapshots.get(path)
+            plan_name = snap.plan if snap and snap.plan else "Unknown"
+            is_pro = plan_name.lower() in ("pro", "prolite", "team", "business")
+            
             tag = f"node_{i}"
-            # Vẽ khung nền card cho từng profile để tạo vùng bấm cực rộng
-            card_id = cv.create_rectangle(ox-85, oy-35, ox+85, oy+125, fill=C["surface_2"], outline=C["border"], width=1, tags=("target_node", tag))
-            circle_id = cv.create_oval(ox-25, oy-25, ox+25, oy+25, fill=C["surface"], outline=C["border_strong"], width=2, tags=("target_node", tag))
-            cv.create_text(ox, oy, text=(label[:1] or "C").upper(), fill=C["text_2"], font=(FONT_FAMILY, 14, "bold"), tags=("target_node", tag))
-            cv.create_text(ox, oy+42, text=label, fill=C["text_2"], font=(FONT_FAMILY, 11, "bold"), tags=("target_node", tag))
+            tag_type = "blocked_node" if is_pro else "target_node"
+            node_tags = ("any_node", tag_type, tag)
+            
+            # Thiết lập màu sắc và giao diện theo gói Plan
+            if is_pro:
+                card_bg = C["surface"]
+                card_border = "#3a2024"
+                circle_border = "#5c2a30"
+                badge_text = "PRO • KHÔNG CHO PHÉP"
+                badge_color = C["rose"]
+            else:
+                card_bg = C["surface_2"]
+                card_border = C["border"]
+                circle_border = C["border_strong"]
+                p_lower = plan_name.lower()
+                badge_text = "PLUS" if p_lower == "plus" else ("FREE" if p_lower == "free" else plan_name.upper())
+                badge_color = "#93C5FD" if p_lower == "plus" else ("#6EE7B7" if p_lower == "free" else C["text_3"])
+
+            # Khung thẻ bao quanh profile
+            card_id = cv.create_rectangle(ox-85, oy-35, ox+85, oy+125, fill=card_bg, outline=card_border, width=1, tags=node_tags)
+            
+            # Huy hiệu Plan
+            cv.create_text(ox, oy-20, text=badge_text, fill=badge_color, font=(FONT_FAMILY, 8, "bold"), tags=node_tags)
+            
+            circle_id = cv.create_oval(ox-25, oy-25, ox+25, oy+25, fill=C["surface"], outline=circle_border, width=2, tags=node_tags)
+            cv.create_text(ox, oy, text=(label[:1] or "C").upper(), fill=C["text_2"] if not is_pro else C["text_3"], font=(FONT_FAMILY, 14, "bold"), tags=node_tags)
+            cv.create_text(ox, oy+42, text=label, fill=C["text_2"] if not is_pro else C["text_3"], font=(FONT_FAMILY, 11, "bold"), tags=node_tags)
             draw_node_limits(path, ox, oy+64, tag=tag)
-            self.nexus_nodes.append({"path": path, "x": ox, "y": oy, "card_id": card_id, "circle_id": circle_id, "tag": tag, "idx": i})
+            
+            self.nexus_nodes.append({
+                "path": path,
+                "label": label,
+                "x": ox,
+                "y": oy,
+                "card_id": card_id,
+                "circle_id": circle_id,
+                "tag": tag,
+                "idx": i,
+                "is_pro": is_pro,
+                "plan": plan_name,
+            })
             
         # Draw Wire & Glow
         wire_glow = cv.create_line(0, 0, 0, 0, fill=C["indigo_soft"], width=8, smooth=True)
@@ -1539,13 +1600,22 @@ class CodexAccountManager(ctk.CTk):
                     cv.itemconfig(n["card_id"], outline=C["emerald"], width=2)
                     cv.itemconfig(n["circle_id"], outline=C["emerald"], width=3)
                 else:
-                    cv.itemconfig(n["card_id"], outline=C["border"], width=1)
-                    cv.itemconfig(n["circle_id"], outline=C["border_strong"], width=2)
+                    cv.itemconfig(n["card_id"], outline="#3a2024" if n["is_pro"] else C["border"], width=1)
+                    cv.itemconfig(n["circle_id"], outline="#5c2a30" if n["is_pro"] else C["border_strong"], width=2)
                     
         def select_node_by_index(idx):
-            if 0 <= idx < len(others):
-                self.nexus_active_target = others[idx][0]
+            if 0 <= idx < len(self.nexus_nodes):
+                node_data = self.nexus_nodes[idx]
+                if node_data["is_pro"]:
+                    # Hiệu ứng cảnh báo khi cố tình bấm vào tài khoản Pro
+                    cv.itemconfig(node_data["card_id"], outline=C["rose"], width=2)
+                    set_notice(f"⛔ Không cho phép: Profile '{node_data['label']}' là tài khoản PRO! (Chỉ hỗ trợ Plus hoặc Free)", C["rose"])
+                    card.after(700, lambda: cv.itemconfig(node_data["card_id"], outline="#3a2024", width=1))
+                    return
+
+                self.nexus_active_target = node_data["path"]
                 snap_to_target()
+                set_notice(f"✓ Đã kết nối với {node_data['label']} ({node_data['plan'].upper()})", C["emerald"])
 
         def on_click(event):
             # 1. Kiểm tra nếu bấm trực tiếp vào phần tử có tag node_
@@ -1570,17 +1640,21 @@ class CodexAccountManager(ctk.CTk):
             if closest_idx is not None:
                 select_node_by_index(closest_idx)
 
-        # Bắt sự kiện click cả trên tag phần tử và trên canvas
-        cv.tag_bind("target_node", "<ButtonPress-1>", on_click)
+        # Bắt sự kiện click
+        cv.tag_bind("any_node", "<ButtonPress-1>", on_click)
         cv.bind("<ButtonPress-1>", on_click)
         
-        # Thêm hiệu ứng biến con trỏ thành hình bàn tay
-        def on_enter(e): cv.config(cursor="hand2")
+        # Con trỏ bàn tay chỉ hiển thị cho Plus/Free, Pro hiển thị biểu tượng cấm
+        def on_enter_target(e): cv.config(cursor="hand2")
+        def on_enter_blocked(e): cv.config(cursor="no")
         def on_leave(e): cv.config(cursor="")
-        cv.tag_bind("target_node", "<Enter>", on_enter)
+        
+        cv.tag_bind("target_node", "<Enter>", on_enter_target)
         cv.tag_bind("target_node", "<Leave>", on_leave)
+        cv.tag_bind("blocked_node", "<Enter>", on_enter_blocked)
+        cv.tag_bind("blocked_node", "<Leave>", on_leave)
 
-        # Kích hoạt snap lần đầu tiên sau khi đã bind toàn bộ sự kiện
+        # Kích hoạt snap lần đầu tiên
         snap_to_target()
 
     def _render_placeholder_page(self, page: str):
