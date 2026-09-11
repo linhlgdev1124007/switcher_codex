@@ -206,9 +206,9 @@ def plan_palette(plan: str) -> tuple[str, str, str]:
 def usage_color(remaining: float | None) -> str:
     if remaining is None:
         return C["text_3"]
-    if remaining <= 15:
+    if remaining < 5:
         return C["rose"]
-    if remaining <= 35:
+    if remaining <= 30:
         return C["amber"]
     return C["emerald"]
 
@@ -746,8 +746,8 @@ class UsageBlock(ctk.CTkFrame):
         # Ultra-slim modern progress bar
         progress = ctk.CTkProgressBar(
             self,
-            height=5,
-            corner_radius=2,
+            height=8,
+            corner_radius=4,
             fg_color=C["track"],
             progress_color=color,
         )
